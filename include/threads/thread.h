@@ -5,6 +5,8 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "threads/synch.h"
+
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -95,18 +97,37 @@ struct thread {
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
-#ifdef USERPROG
-	/* Owned by userprog/process.c. */
-	uint64_t *pml4;                     /* Page map level 4 */
-#endif
-#ifdef VM
-	/* Table for whole virtual memory owned by thread. */
-	struct supplemental_page_table spt;
-#endif
+	/* priority donation */
+	int init_priority;					/* the original priority*/
+	struct lock *wait_on_lock;			/* the locks which is thread wait*/
+	struct list donations;				/* the thread who donated priority to thread */
+	struct list_elem donation_elem;		/* the thread who donated priority to thread */
+
+	/* Project 2 */
+	int exit_status;				/* used to deliver child exit_status to parent */
+	struct file **fdTable; 			/* allocation in threac_create (thread.c) */
+	struct file *running; 			/* executable ran by current process (process.c load, process_exit) */
+	struct semaphore wait_sema; 	/* used by parent to wait for child */
+	struct semaphore free_sema;	 	/* Postpone child termination (process_exit) until parent receives its exit_status in 'wait' (process_wait) */
+	struct semaphore fork_sema;	 // parent wait (process_wait) until child fork completes (__do_fork)
+	struct list child_list;		 // keep children
+	struct list_elem child_elem; // used to put current thread into 'children' list
+	int fdIdx;			   // an index of an open spot in fdTable
+	struct intr_frame parent_if; // to preserve my current intr_frame and pass it down to child in fork ('parent_if' in child's perspective)
+	
+	#ifdef USERPROG
+		/* Owned by userprog/process.c. */
+		uint64_t *pml4;                     /* Page map level 4 */
+	#endif
+	#ifdef VM
+		/* Table for whole virtual memory owned by thread. */
+		struct supplemental_page_table spt;
+	#endif
 
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
+	int64_t wake_time;             		/* the time is thread wake up*/
 };
 
 /* If false (default), use round-robin scheduler.
@@ -143,4 +164,22 @@ int thread_get_load_avg (void);
 
 void do_iret (struct intr_frame *tf);
 
-#endif /* threads/thread.h */
+void thread_sleep(int64_t ticks);
+void thread_awake(int64_t ticks);
+void update_next_tick_to_awake(int64_t ticks);
+int64_t get_next_tick_to_awake(void);
+bool thread_compare_priority (struct list_elem *l, struct list_elem *s, void *aux UNUSED);
+void  thread_test_preemption (void);
+
+
+/* priority donation */
+bool thread_compare_donate_priority (const struct list_elem *l, const struct list_elem *s, void *aux UNUSED);
+void donate_priority (void);
+void remove_with_lock (struct lock *lock);
+void refresh_priority(void);
+
+/* 2-4 syscall - fork */
+#define FDT_PAGES 3						  // pages to allocate for file descriptor tables (thread_create, process_exit)
+#define FDCOUNT_LIMIT FDT_PAGES *(1 << 9) // Limit fdIdx
+
+#endif
