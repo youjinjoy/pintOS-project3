@@ -273,14 +273,14 @@ int write(int fd, const void *buffer, unsigned size)
 
 	struct thread *cur = thread_current();
 
-	if (fileobj == STDOUT)
+	if (fd == 1)
 	{
-		
+		// printf("address:%p, STDOUT: %d, true or false: %d\n", fd, STDOUT, fileobj==STDOUT);
 		putbuf(buffer, size);
 		ret = size;
 	}
 	
-	else if (fileobj == STDIN)
+	else if (fd == 0)
 	{
 		ret = -1;
 	}
@@ -348,7 +348,7 @@ int read(int fd, void *buffer, unsigned size)
 	if (fileobj == NULL)
 		return -1;
 
-	if (fileobj == STDIN)
+	if (fd == 0)
 	{
 		int i;
 		unsigned char *buf = buffer;
@@ -361,7 +361,7 @@ int read(int fd, void *buffer, unsigned size)
 		}
 		ret = i;
 	}
-	else if (fileobj == STDOUT)
+	else if (fd == 1)
 	{
 		ret = -1;
 	}

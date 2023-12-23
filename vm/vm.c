@@ -50,6 +50,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 	/* Check wheter the upage is already occupied or not. */
 	if (spt_find_page (spt, upage) == NULL) {
+
 		/* TODO: Create the page, fetch the initialier according to the VM type,
 		 * TODO: and then create "uninit" page struct by calling uninit_new. You
 		 * TODO: should modify the field after calling the uninit_new. */
@@ -63,18 +64,41 @@ err:
 /* Find VA from spt and return page. On error, return NULL. */
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
-	struct page *page = NULL;
-	/* TODO: Fill this function. */
+	
+  // struct hash_iterator i;
+	// hash_first (&i, spt->pages);
+	// while (hash_next (&i))
+	// {
+	// 	if (page->va == va){
+	// 		struct page *page = hash_entry (hash_cur (&i), page, hash_elem);
+	// 		return page;
+	// 	}
+	// }
+	struct page p;
+  struct hash_elem *e;
 
-	return page;
+  p.va = va;
+  e = hash_find (&spt->pages, &p.hash_elem);
+  return e != NULL ? hash_entry (e, struct page, hash_elem) : NULL;
+
 }
 
 /* Insert PAGE into spt with validation. */
 bool
 spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
+
 	int succ = false;
+
 	/* TODO: Fill this function. */
+	// 페이지가 존재하는지
+
+
+	// 이 페이지가 spt에 이미 들어가있는지 - hash_insert에서 spt에 기존 페이지가 들어있는지 확인한다.
+	struct hash_elem *inserted = hash_insert(spt->pages, page->hash_elem);
+	if (inserted != NULL){
+		succ = true;
+	}
 
 	return succ;
 }
@@ -136,6 +160,23 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
+	
+	//	1) 사용자가 접근하려는 주소가 유효한지 검사 가능해야함
+	//	2) 페이지가 커널 가상 메모리에 위치한지 검사 가능해야함
+	//	3) read-only 페이지에 쓰기 시도한건지 검사 가능해야함
+	//  위 세가지면 접근 유효 X -> 프로세스 종료 및 모든 리소스 해제
+	// if (!write || !user || not_present){
+	// 	spt
+	// 	struct hash_iterator i;
+
+	// 	hash_first (&i, h);
+	// 	while (hash_next (&i))
+	// 	{
+	// 	struct foo *f = hash_entry (hash_cur (&i), struct foo, elem);
+	// 	...do something with f...
+	// 	}
+	// }
+
 
 	return vm_do_claim_page (page);
 }
@@ -174,6 +215,37 @@ vm_do_claim_page (struct page *page) {
 /* Initialize new supplemental page table */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
+
+		// hash init success
+	if (hash_init(&spt->pages, page_hash, page_less, NULL))
+	{
+		return;
+	}
+		// hash init fail
+	else
+	{
+		printf("***hash init failed***\n");
+		exit(-1);
+	}
+	
+}
+
+// 해시 함수와 비교 함수
+/* Returns a hash value for page p. */
+unsigned
+page_hash (const struct hash_elem *p_, void *aux UNUSED) {
+  const struct page *p = hash_entry (p_, struct page, hash_elem);
+  return hash_bytes (&p->addr, sizeof p->addr);
+}
+
+/* Returns true if page a precedes page b. */
+bool
+page_less (const struct hash_elem *a_,
+           const struct hash_elem *b_, void *aux UNUSED) {
+  const struct page *a = hash_entry (a_, struct page, hash_elem);
+  const struct page *b = hash_entry (b_, struct page, hash_elem);
+
+  return a->addr < b->addr;
 }
 
 /* Copy supplemental page table from src to dst */
