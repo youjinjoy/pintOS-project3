@@ -65,15 +65,6 @@ err:
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	
-  // struct hash_iterator i;
-	// hash_first (&i, spt->pages);
-	// while (hash_next (&i))
-	// {
-	// 	if (page->va == va){
-	// 		struct page *page = hash_entry (hash_cur (&i), page, hash_elem);
-	// 		return page;
-	// 	}
-	// }
 	struct page p;
   struct hash_elem *e;
 
@@ -91,11 +82,7 @@ spt_insert_page (struct supplemental_page_table *spt UNUSED,
 	int succ = false;
 
 	/* TODO: Fill this function. */
-	// 페이지가 존재하는지
-
-
-	// 이 페이지가 spt에 이미 들어가있는지 - hash_insert에서 spt에 기존 페이지가 들어있는지 확인한다.
-	struct hash_elem *inserted = hash_insert(spt->pages, page->hash_elem);
+	struct hash_elem *inserted = hash_insert(&spt->pages, &page->hash_elem);
 	if (inserted != NULL){
 		succ = true;
 	}
@@ -136,9 +123,20 @@ static struct frame *
 vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
+	frame = calloc(sizeof(struct frame),1); 
+
+	/*
+	frame->kva = palloc_get_page(PAL_USER);	// kernel virtual address <- physical user pool
+	*/
+	void *kva = palloc_get_page(PAL_USER|PAL_ZERO);
+	if (kva == NULL){
+		PANIC("TODO");
+	}
+	frame->kva = kva;
 
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
+
 	return frame;
 }
 
@@ -160,22 +158,12 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
-	
+
 	//	1) 사용자가 접근하려는 주소가 유효한지 검사 가능해야함
 	//	2) 페이지가 커널 가상 메모리에 위치한지 검사 가능해야함
 	//	3) read-only 페이지에 쓰기 시도한건지 검사 가능해야함
 	//  위 세가지면 접근 유효 X -> 프로세스 종료 및 모든 리소스 해제
-	// if (!write || !user || not_present){
-	// 	spt
-	// 	struct hash_iterator i;
 
-	// 	hash_first (&i, h);
-	// 	while (hash_next (&i))
-	// 	{
-	// 	struct foo *f = hash_entry (hash_cur (&i), struct foo, elem);
-	// 	...do something with f...
-	// 	}
-	// }
 
 
 	return vm_do_claim_page (page);
@@ -194,7 +182,16 @@ bool
 vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
+	// page는 왜 palloc 안하지?
+	
+	// 왜 round down하지?
+	// thread_current()로 하면 안되나?
+	void *current_page = pg_round_down(va);
+	if (spt_find_page(thread_current()->spt, current_page) == NULL){
+		return false;
+	}
 
+	
 	return vm_do_claim_page (page);
 }
 
@@ -208,6 +205,9 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
+	if (pml4_set_page (thread_current()->pml4, page->va, frame->kva, 1)){
+		return true;
+	}
 
 	return swap_in (page, frame->kva);
 }
@@ -235,7 +235,7 @@ supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 unsigned
 page_hash (const struct hash_elem *p_, void *aux UNUSED) {
   const struct page *p = hash_entry (p_, struct page, hash_elem);
-  return hash_bytes (&p->addr, sizeof p->addr);
+  return hash_bytes (&p->va, sizeof p->va);
 }
 
 /* Returns true if page a precedes page b. */
@@ -245,7 +245,7 @@ page_less (const struct hash_elem *a_,
   const struct page *a = hash_entry (a_, struct page, hash_elem);
   const struct page *b = hash_entry (b_, struct page, hash_elem);
 
-  return a->addr < b->addr;
+  return a->va < b->va;
 }
 
 /* Copy supplemental page table from src to dst */
