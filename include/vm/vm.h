@@ -47,14 +47,10 @@ struct page {
 	struct frame *frame;   /* Back reference for frame */
 
 	/* Your implementation */
-	// 1. page fault를 일으킨 vp 저장
-	// 			1) 사용자가 접근하려는 주소가 유효한지 검사 가능해야함
-	// 			2) 페이지가 커널 가상 메모리에 위치한지 검사 가능해야함
-	//			3) read-only 페이지에 쓰기 시도한건지 검사 가능해야함
 	struct hash_elem hash_elem;
-	bool not_present;  /* True: not-present page, false: writing r/o page. */
-	bool user;         /* True: access by user, false: access by kernel. */
-	bool write;        /* True: access was write, false: access was read. */
+	// bool not_present;
+	// bool user;
+	bool writable;
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
